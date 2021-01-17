@@ -315,8 +315,8 @@ fencrypt(FILE *in, FILE *out, const char *password)
         /* note: zero-length chunk is fine */
 
         /* MAC is hash(key || counter || ct)
-         * IV under hostile control, so append after the key. IV is
-         * different for each chunk, so blocks must appear in order.
+         * Counter is under hostile control, so append after the key. It's
+         * also different for each chunk, so blocks must appear in order.
          */
         uint32_t mac[4];
         xxtea128_hash_init(mac);
