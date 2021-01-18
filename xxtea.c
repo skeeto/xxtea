@@ -18,7 +18,9 @@
 #ifdef _WIN32
 #  include <io.h>
 #  include <windows.h>
-#  pragma comment(lib, "advapi32")
+#  ifdef _MSC_VER
+#    pragma comment(lib, "advapi32")
+#  endif
 #else
 #  include <fcntl.h>
 #  include <termios.h>
