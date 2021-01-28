@@ -133,7 +133,7 @@ xxtea128_hash_final(uint32_t ctx[4], const void *buf, size_t len)
  * until 2^cost bytes, then fed into the hash. The salt is fed into the
  * hash first.
  *
- * - password must be less than 63 bytes (implementation limit)
+ * - password must be less than MAXPASS bytes (implementation limit)
  * - cost must be > 10 and < 64
  */
 static void
@@ -174,7 +174,8 @@ increment(uint32_t iv[4])
 static int fillrand(void *buf, int len);
 
 /* Display prompt then read zero-terminated, UTF-8 password.
- * Return password length with terminator, or zero on error.
+ * Return password length with terminator, zero on input error, negative if
+ * the buffer was too small.
  */
 static int read_password(char *buf, int len, char *prompt);
 
@@ -219,8 +220,11 @@ read_password(char *buf, int len, char *prompt)
     DWORD nread;
     if (!ReadConsoleW(hi, wbuf, len - 1 + 2, &nread, 0)) goto done;
     if (nread < 2) goto done;
-    if (wbuf[nread-2] != '\r' || wbuf[nread-1] != '\n') goto done;
-    wbuf[nread-2] = 0;  // truncate "\r\n"
+    if (wbuf[nread-2] != '\r' || wbuf[nread-1] != '\n') {
+        pwlen = -1;
+        goto done;
+    }
+    wbuf[nread-2] = 0;  /* truncate "\r\n" */
     pwlen = WideCharToMultiByte(CP_UTF8, 0, wbuf, -1, buf, len, 0, 0);
 
 done:
@@ -259,15 +263,18 @@ read_password(char *buf, int len, char *prompt)
         new = old;
         new.c_lflag &= ~ECHO;
         tcsetattr(tty, TCSANOW, &new);
-        r = read(tty, buf, len-1);
+        r = read(tty, buf, len);
         if (r < 0) {
             r = 0;
-        }
-        while (r > 0 && (buf[r-1] == '\r' || buf[r-1] == '\n')) {
-            r--;
-        }
-        if (r > 0) {
-            buf[r] = 0;
+        } else if (r > 0 && buf[r-1] != '\n') {
+            /* consume the rest of the line */
+            do {
+                r = read(tty, buf, len);
+            } while (r > 0 && buf[r-1] != '\n');
+            memset(buf, 0, len);
+            r = -1;
+        } else if (r > 0) {
+            buf[r-1] = 0;
         }
     }
     write(tty, "\n", 1);
@@ -539,30 +546,29 @@ main(int argc, char *argv[])
         return 1;
     }
 
-    static char passbuf[2][MAXPASS+1];  /* static -> not on stack */
+    static char buf[2][MAXPASS];  /* static -> not on stack */
     if (!password) {
-        password = passbuf[0];
-        int r = read_password(passbuf[0], MAXPASS, "password: ");
-        if (!r) {
+        password = buf[0];
+        int r = read_password(buf[0], sizeof(buf[0]), "password: ");
+        if (r == 0) {
             fputs("xxtea: failed to read password\n", stderr);
             return 1;
         }
+        if (r < 0) {
+            fprintf(stderr, "xxtea: password must be < %d bytes\n", MAXPASS);
+            return 1;
+        }
         if (mode == MODE_ENCRYPT) {
-            r = read_password(passbuf[1], MAXPASS, "password (repeat): ");
-            if (!r) {
+            r = read_password(buf[1], sizeof(buf[1]), "password (repeat): ");
+            if (r == 0) {
                 fputs("xxtea: failed to read password\n", stderr);
                 return 1;
             }
-            if (strcmp(passbuf[0], passbuf[1])) {
+            if (r < 0 || strcmp(buf[0], buf[1])) {
                 fputs("xxtea: passwords don't match\n", stderr);
                 return 1;
             }
         }
-    }
-
-    if (strlen(password) >= MAXPASS) {
-        fprintf(stderr, "xxtea: password must be < %d bytes\n", MAXPASS-1);
-        return 1;
     }
 
     if (argv[xoptind] && argv[xoptind+1]) {
