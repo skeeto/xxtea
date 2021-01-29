@@ -49,7 +49,9 @@ this tool continuously for longer than a day.
 I wanted to study XXTEA and experiment more with Merkle–Damgård
 constructions. I also wanted to dogfood [w64devkit][w64devkit], so except
 for the unix bits, this was entirely implemented from scratch within
-w64devkit in a fresh Windows installation.
+w64devkit in a fresh Windows installation. To build with w64devkit:
+
+    make EXE=.exe
 
 This implementation does not exploit it, but chunks can be authenticated
 and decrypted in parallel since the MAC is keyed with both the MAC key and
