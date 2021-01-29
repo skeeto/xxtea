@@ -190,6 +190,8 @@ fillrand(void *buf, int len)
 static int
 read_password(char *buf, int len, char *prompt)
 {
+    /* Ref: https://nullprogram.com/blog/2020/05/04/ */
+
     /* Resources that will be cleaned up */
     int pwlen = 0;
     DWORD orig = 0;
@@ -326,7 +328,7 @@ fencrypt(FILE *in, FILE *out, const char *password)
 
         /* MAC is hash(key || counter || ct)
          * Counter is under hostile control, so append after the key. It's
-         * also different for each chunk, so blocks must appear in order.
+         * also different for each chunk, so chunks must appear in order.
          */
         uint32_t mac[4];
         xxtea128_hash_init(mac);
