@@ -116,15 +116,17 @@ xxtea128_hash_final(uint32_t ctx[4], const void *buf, size_t len)
     char tmp[16];
     memset(tmp, 16-len, 16);
     memcpy(tmp, buf, len);
-    uint32_t k[4] = {
+    uint32_t block[4] = {
         loadu32(tmp +  0), loadu32(tmp +  4),
         loadu32(tmp +  8), loadu32(tmp + 12),
     };
-    /* swap middle words to break length extension attacks */
-    uint32_t swap = ctx[1];
-    ctx[1] = ctx[2];
-    ctx[2] = swap;
-    xxtea128_encrypt(k, ctx);
+    /* Davies–Meyer for last block to break length-extension attacks and
+     * prevent using the decryption function to roll it backwards
+     */
+    uint32_t pre[4] = {ctx[0], ctx[1], ctx[2], ctx[3]};
+    xxtea128_encrypt(block, ctx);
+    ctx[0] ^= pre[0]; ctx[1] ^= pre[1];
+    ctx[2] ^= pre[2]; ctx[3] ^= pre[3];
 }
 
 /* Derive a 128-bit key from a password and 128-bit salt.
