@@ -39,11 +39,6 @@ All hash inputs are keyed, so the likely second pre-image or known-key
 weaknesses on the Merkle-Damgård construction using XXTEA should not
 matter. Attackers do not know the hash state when choosing their inputs.
 
-The 128-bit hash state is small, so MAC collisions become a practical risk
-after a few terabytes of ciphertext output. That sets the upper safety
-limit for encrypting at once. Or, considering XXTEA's speed, do not run
-this tool continuously for longer than a day.
-
 ## Notes
 
 I wanted to study XXTEA and experiment more with Merkle–Damgård
