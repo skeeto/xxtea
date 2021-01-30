@@ -164,10 +164,10 @@ kdf(uint32_t key[4], const char *password, const uint32_t salt[4], int cost)
 }
 
 static void
-increment(uint32_t iv[4])
+increment(uint32_t ctr[4])
 {
     /* 128-bit increment, first word changes fastest */
-    if (!++iv[0]) if (!++iv[1]) if (!++iv[2]) ++iv[3];
+    if (!++ctr[0]) if (!++ctr[1]) if (!++ctr[2]) ++ctr[3];
 }
 
 /* Fill buf with system entropy. */
@@ -299,24 +299,24 @@ static enum error
 fencrypt(FILE *in, FILE *out, const char *password)
 {
     enum error err = ERR_OK;
-    uint32_t iv[4];
+    uint32_t ctr[4];
     volatile uint32_t key[4];
 
-    if (fillrand(iv, sizeof(iv))) {
+    if (fillrand(ctr, sizeof(ctr))) {
         return ERR_ENT;
     }
 
     /* first 16 bytes of the file is the IV */
-    storeu32(bigbuf +  0, iv[0]);
-    storeu32(bigbuf +  4, iv[1]);
-    storeu32(bigbuf +  8, iv[2]);
-    storeu32(bigbuf + 12, iv[3]);
+    storeu32(bigbuf +  0, ctr[0]);
+    storeu32(bigbuf +  4, ctr[1]);
+    storeu32(bigbuf +  8, ctr[2]);
+    storeu32(bigbuf + 12, ctr[3]);
     if (!fwrite(bigbuf, 16, 1, out)) {
         return ERR_WRITE;
     }
 
     /* IV is also the salt */
-    kdf((uint32_t *)key, password, iv, COST);
+    kdf((uint32_t *)key, password, ctr, COST);
 
     for (;;) {
         size_t n = fread(bigbuf, 1, MAXBUF, in);
@@ -333,11 +333,11 @@ fencrypt(FILE *in, FILE *out, const char *password)
         uint32_t mac[4];
         xxtea128_hash_init(mac);
         xxtea128_hash_update(mac, (uint32_t *)key);
-        xxtea128_hash_update(mac, iv);
+        xxtea128_hash_update(mac, ctr);
 
         for (size_t i = 0; i < (n + 15)/16; i++) {
-            uint32_t b[4] = {iv[0], iv[1], iv[2], iv[3]};
-            increment(iv);
+            uint32_t b[4] = {ctr[0], ctr[1], ctr[2], ctr[3]};
+            increment(ctr);
             xxtea128_encrypt((uint32_t *)key, b);
             b[0] ^= loadu32(bigbuf + i*16 +  0);
             b[1] ^= loadu32(bigbuf + i*16 +  4);
@@ -377,20 +377,20 @@ static enum error
 fdecrypt(FILE *in, FILE *out, const char *password)
 {
     enum error err = ERR_OK;
-    uint32_t iv[4];
+    uint32_t ctr[4];
     volatile uint32_t key[4];
 
     /* first 16 bytes of the file is the IV */
     if (!fread(bigbuf, 16, 1, in)) {
         return ferror(in) ? ERR_READ : ERR_TRUNC;
     }
-    iv[0] = loadu32(bigbuf +  0);
-    iv[1] = loadu32(bigbuf +  4);
-    iv[2] = loadu32(bigbuf +  8);
-    iv[3] = loadu32(bigbuf + 12);
+    ctr[0] = loadu32(bigbuf +  0);
+    ctr[1] = loadu32(bigbuf +  4);
+    ctr[2] = loadu32(bigbuf +  8);
+    ctr[3] = loadu32(bigbuf + 12);
 
     /* IV is also the salt */
-    kdf((uint32_t *)key, password, iv, COST);
+    kdf((uint32_t *)key, password, ctr, COST);
 
     for (;;) {
         size_t n = fread(bigbuf, 1, MAXBUF+16, in);
@@ -408,7 +408,7 @@ fdecrypt(FILE *in, FILE *out, const char *password)
         uint32_t mac[4];
         xxtea128_hash_init(mac);
         xxtea128_hash_update(mac, (uint32_t *)key);
-        xxtea128_hash_update(mac, iv);
+        xxtea128_hash_update(mac, ctr);
         xxtea128_hash_append(mac, bigbuf, + n/16*16);
         xxtea128_hash_final(mac, bigbuf + n/16*16, n%16);
         char macbuf[16];
@@ -423,8 +423,8 @@ fdecrypt(FILE *in, FILE *out, const char *password)
         }
 
         for (size_t i = 0; i < (n + 15)/16; i++) {
-            uint32_t b[4] = {iv[0], iv[1], iv[2], iv[3]};
-            increment(iv);
+            uint32_t b[4] = {ctr[0], ctr[1], ctr[2], ctr[3]};
+            increment(ctr);
             xxtea128_encrypt((uint32_t *)key, b);
             b[0] ^= loadu32(bigbuf + i*16 +  0);
             b[1] ^= loadu32(bigbuf + i*16 +  4);
