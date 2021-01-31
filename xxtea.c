@@ -18,6 +18,7 @@
 #ifdef _WIN32
 #  include <io.h>
 #  include <windows.h>
+#  include <ntsecapi.h>
 #  ifdef _MSC_VER
 #    pragma comment(lib, "advapi32")
 #  endif
@@ -185,8 +186,7 @@ static int read_password(char *buf, int len, char *prompt);
 static int
 fillrand(void *buf, int len)
 {
-    BOOLEAN NTAPI SystemFunction036(PVOID, ULONG);
-    return !SystemFunction036(buf, len);
+    return !RtlGenRandom(buf, len);
 }
 
 static int
